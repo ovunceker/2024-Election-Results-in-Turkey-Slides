@@ -1,0 +1,94 @@
+---
+title: "2024 Local Election Results in Turkey"
+author: "Ovunc Ozgun Eker"
+date: "2025-11-14"
+output: ioslides_presentation
+---
+
+## Creating Data for Election Results
+
+This election results are obtained in this [link](https://secim.sozcu.com.tr/secim2024mart31). The way we obtain the data is by scrolling down the webpage and then copy pasting the data with 5 columns to an excel file. 
+
+```{r,echo=FALSE}
+library(readxl)
+
+results <- read_excel("oylar .xlsx")
+results <- as.data.frame(results)
+results <- results[,-c(3,5)]
+names(results) <- c("Province", "Party", "Vote.Percentage")
+results$Vote.Percentage <- gsub("%","",results$Vote.Percentage)
+results$Vote.Percentage <- gsub(",",".",results$Vote.Percentage)
+results$Vote.Percentage <- as.numeric(results$Vote.Percentage)
+
+```
+
+```{r}
+head(results)
+```
+
+## Getting Turkey Map 
+
+We will use the GeoJSON file downloaded from this [link](https://simplemaps.com/gis/country/tr). 
+
+```{r, results='hide',message=FALSE}
+library(sf)
+turkey <- st_read("~/Desktop/tr.json")
+```
+
+We will also add a column to both of the datasets now to be able to merge them.
+
+```{r,include=FALSE}
+library(dplyr)
+library(stringi)
+```
+```{r,results='hide'}
+turkey <- turkey %>%
+  mutate(clean_name = tolower(name),
+         clean_name = stri_trans_general(clean_name, "Latin-ASCII"))
+results <- results %>%
+  mutate(clean_name = tolower(Province),
+         clean_name = stri_trans_general(clean_name, "Latin-ASCII"))
+turkey$clean_name <- gsub("kinkkale", "kirikkale", turkey$clean_name)
+turkey$clean_name <- gsub("zinguldak", "zonguldak", turkey$clean_name)
+turkey$clean_name <- gsub("k. maras", "kahramanmaras", turkey$clean_name)
+merged <- merge(turkey, results, by = "clean_name")
+```
+
+## Election Results Plot
+
+```{r,echo=FALSE,message=FALSE}
+library(plotly)
+
+party_colors <- c(
+  "CHP" = "#E60000",   # red
+  "AKP" = "#FFCC00",   # yellow
+  "DEM" = "#6AB547",   # green
+  "MHP" = "#8B0000",   # dark red
+  "İYİ" = "#0099CC",   # blue
+  "BBP" = "gray80",
+  "YRP" = "#800080"
+)
+
+merged$VoteText <- paste0(merged$Vote.Percentage, "%")
+
+plot_ly() %>%
+    add_sf(
+        data = merged,
+        color = ~Party,
+        colors = party_colors,
+        text = ~paste0(
+            "Province: ", name, 
+            "<br>Winner: ", Party, 
+            "<br>Vote Percentage: ", VoteText
+        ),
+        hoverinfo = "text",
+        hoveron = "fills+points"
+    ) %>%
+    layout(
+        title = "2024 Local Election Results in Turkey"
+    )
+```
+
+
+
+
